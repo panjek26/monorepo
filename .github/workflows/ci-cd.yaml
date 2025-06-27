@@ -1,0 +1,63 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Run Go Lint & Test
+        working-directory: go-service
+        run: |
+          golangci-lint run
+          go test ./...
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node deps
+        working-directory: node-service
+        run: |
+          npm install
+
+      - name: Run ESLint & Jest
+        working-directory: node-service
+        run: |
+          npm run lint
+          npm test
+
+  docker-build:
+    needs: lint-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [go-service, node-service]
+        dockerfile: [Dockerfile.go, Dockerfile.node]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push Docker Image
+        run: |
+          docker build -f dockerfiles/${{ matrix.dockerfile }} -t panjek26/${{ matrix.service }}:latest .
+          docker push panjek26/${{ matrix.service }}:latest

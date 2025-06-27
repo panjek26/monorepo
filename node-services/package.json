@@ -1,0 +1,22 @@
+{
+  "name": "node-service",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@opentelemetry/sdk-trace-base": "^1.25.0",
+    "@opentelemetry/sdk-trace-node": "^1.25.0",
+    "express": "^4.18.2",
+    "fs": "^0.0.1-security",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "supertest": "^6.3.0",
+    "eslint": "^8.0.0"
+  }
+}
