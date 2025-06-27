@@ -1,5 +1,23 @@
-FROM golang:1.22-alpine
+# Stage 1: Build
+FROM golang:1.22-alpine AS builder
 WORKDIR /app
+
+# Optional: Install Git and SSL roots (if needed by Go modules)
+RUN apk add --no-cache git ca-certificates
+
 COPY go-services/ .
-RUN go build -o app .
-CMD ["./app"]
+
+RUN go mod tidy && \
+    go build -o app .
+
+# Stage 2: Run
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+
+# Copy from builder
+COPY --from=builder /app/app /
+
+# Use non-root user
+USER nonroot:nonroot
+
+ENTRYPOINT ["/app"]
