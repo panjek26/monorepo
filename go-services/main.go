@@ -75,7 +75,6 @@ func initMetrics() {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
 	}
 
-	// ✅ Use the correct handler
 	http.Handle("/metrics", handler)
 }
 
