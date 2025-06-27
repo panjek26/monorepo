@@ -133,7 +133,7 @@ jobs:
 
   update-deployment-go-dev:
     needs: [ docker-build ]
-    name: Deploy Image (DEV) - Helm Update (app-deployment)
+    name: Deploy Image (DEV) - Helm Update (app-deployment) 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -144,7 +144,7 @@ jobs:
 
       - name: Update Image Version in the related HelmChart values.yaml
         uses: fjogeleit/yaml-update-action@v0.13.2
-        with:
+        with: 
           valueFile: k8s/go-service-chart/values.yaml
           repository: panjek26/monorepo
           message: "Update image tag to ${{ env.SHORT_SHA }} for DEV"
