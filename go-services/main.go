@@ -41,8 +41,8 @@ func main() {
 }
 
 func initLog() {
-	log.SetFlags(0)             // Disable default log timestamp
-	log.SetOutput(os.Stdout)    // Output to stdout
+	log.SetFlags(0)
+	log.SetOutput(os.Stdout)
 }
 
 func initTracer() {
