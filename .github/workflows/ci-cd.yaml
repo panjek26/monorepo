@@ -4,6 +4,9 @@ on:
   push:
     branches: [feat/monorepo]
 
+permissions:
+  contents: write
+
 jobs:
   go-lint-test:
     runs-on: ubuntu-latest
