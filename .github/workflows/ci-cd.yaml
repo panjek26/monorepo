@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [feat/monorepo]
+    branches: main
 
 permissions:
   contents: write
