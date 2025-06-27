@@ -17,9 +17,8 @@ import (
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/metric"
-	metricglobal "go.opentelemetry.io/otel/metric/global"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 var (
@@ -27,6 +26,7 @@ var (
 	rdb           *redis.Client
 	ctx           = context.Background()
 	requestMetric metric.Int64Counter
+	meter         metric.Meter
 )
 
 func main() {
@@ -56,7 +56,7 @@ func initTracer() {
 	if err != nil {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize tracer","error":"%v"}`, err)
 	}
-	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
+	tp := trace.NewTracerProvider(trace.WithBatcher(exporter))
 	otel.SetTracerProvider(tp)
 }
 
@@ -65,16 +65,19 @@ func initMetrics() {
 	if err != nil {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize prometheus exporter","error":"%v"}`, err)
 	}
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
-	metricglobal.SetMeterProvider(provider)
+
+	provider := metric.NewMeterProvider(metric.WithReader(exporter))
+	otel.SetMeterProvider(provider)
+
+	meter = provider.Meter("go-service")
+
+	var metricErr error
+	requestMetric, metricErr = meter.Int64Counter("http_requests_total")
+	if metricErr != nil {
+		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, metricErr)
+	}
 
 	http.Handle("/metrics", exporter)
-
-	meter := metricglobal.Meter("go-service")
-	requestMetric, err = meter.Int64Counter("http_requests_total")
-	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
-	}
 }
 
 func initDB() {
@@ -127,8 +130,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"database": "ok",
 		"redis":    "ok",
 	}
-	code := http.StatusOK
 
+	code := http.StatusOK
 	if dbErr != nil {
 		status["database"] = "unreachable"
 		code = http.StatusServiceUnavailable
