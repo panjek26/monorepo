@@ -60,7 +60,7 @@ func initTracer() {
 }
 
 func initMetrics() {
-	exporter, err := prometheus.New()
+	exporter, handler, err := prometheus.New()
 	if err != nil {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize prometheus exporter","error":"%v"}`, err)
 	}
@@ -75,10 +75,9 @@ func initMetrics() {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
 	}
 
-	// ✅ This is the correct handler registration
-	http.Handle("/metrics", http.HandlerFunc(exporter.ServeHTTP))
+	// ✅ Use the correct handler
+	http.Handle("/metrics", handler)
 }
-
 
 func initDB() {
 	dbHost := os.Getenv("DB_HOST")
