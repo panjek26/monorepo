@@ -1,0 +1,10 @@
+build/
+data/
+vendor/
+.vscode/
+.idea/
+.scannerwork/
+coverage.*
+.DS_Store
+*.out
+*.env

@@ -3,17 +3,30 @@ const morgan = require('morgan');
 const { Pool } = require('pg');
 const redis = require('redis');
 
-// OpenTelemetry setup
+// --- OpenTelemetry Tracing ---
 const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
 const { ConsoleSpanExporter, SimpleSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 
-const provider = new NodeTracerProvider();
-provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
-provider.register();
+const tracerProvider = new NodeTracerProvider();
+tracerProvider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
+tracerProvider.register();
+
+// --- OpenTelemetry Metrics ---
+const { MeterProvider } = require('@opentelemetry/sdk-metrics');
+const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
+
+const promExporter = new PrometheusExporter({ preventServerStart: true });
+const meterProvider = new MeterProvider({ exporter: promExporter });
+const meter = meterProvider.getMeter('node-service-meter');
+
+// Custom metric: request count
+const requestCounter = meter.createCounter('http_requests_total', {
+  description: 'Total number of HTTP requests',
+});
 
 const app = express();
 
-// JSON logging to stdout
+// JSON logging
 morgan.token('json', (req, res) => JSON.stringify({
   method: req.method,
   url: req.url,
@@ -22,6 +35,12 @@ morgan.token('json', (req, res) => JSON.stringify({
 }));
 app.use(morgan(':json'));
 app.use(express.json());
+
+// Middleware to count all incoming requests
+app.use((req, res, next) => {
+  requestCounter.add(1, { route: req.path, method: req.method });
+  next();
+});
 
 // ENV vars
 const {
@@ -84,13 +103,13 @@ app.get('/healthz', async (_, res) => {
   res.status(code).json(status);
 });
 
-// Dummy login (GET only, match Go)
+// Dummy login
 app.get('/login', (_, res) => {
   console.log(JSON.stringify({ type: 'login', message: 'Login endpoint hit' }));
   res.send('Logged in');
 });
 
-// Product list from DB
+// Product list
 app.get('/products', async (_, res) => {
   try {
     const result = await db.query('SELECT name FROM products');
@@ -102,7 +121,14 @@ app.get('/products', async (_, res) => {
   }
 });
 
-// Start service
-app.listen(8081, () => {
-  console.log(JSON.stringify({ type: 'startup', message: 'Node.js service running on :8081' }));
+// Expose /metrics (equivalent to Go)
+app.get('/metrics', async (req, res) => {
+  res.setHeader('Content-Type', promExporter.contentType);
+  res.end(await promExporter.getMetricsAsJSON());
+});
+
+// Start
+const PORT = 8081;
+app.listen(PORT, () => {
+  console.log(JSON.stringify({ type: 'startup', message: `Node.js service running on :${PORT}` }));
 });
