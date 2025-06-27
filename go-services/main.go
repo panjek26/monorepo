@@ -14,14 +14,18 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 var (
-	db  *sql.DB
-	rdb *redis.Client
-	ctx = context.Background()
+	db           *sql.DB
+	rdb          *redis.Client
+	ctx          = context.Background()
+	loginCounter metric.Int64Counter
 )
 
 func main() {
@@ -29,6 +33,7 @@ func main() {
 	initTracer()
 	initDB()
 	initRedis()
+	initMetrics()
 
 	http.HandleFunc("/healthz", healthHandler)
 	http.HandleFunc("/login", loginHandler)
@@ -46,12 +51,37 @@ func initLog() {
 }
 
 func initTracer() {
-	exporter, err := stdouttrace.New()
+	// Tracing exporter (stdout for demo purposes)
+	traceExporter, err := stdouttrace.New()
 	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize tracer","error":"%v"}`, err)
+		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize trace exporter","error":"%v"}`, err)
 	}
-	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
+	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(traceExporter))
 	otel.SetTracerProvider(tp)
+
+	// Prometheus metrics exporter
+	promExporter, err := prometheus.New()
+	if err != nil {
+		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize Prometheus exporter","error":"%v"}`, err)
+	}
+
+	meterProvider := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(promExporter),
+	)
+	otel.SetMeterProvider(meterProvider)
+
+	// Expose /metrics
+	http.Handle("/metrics", promExporter)
+}
+
+func initMetrics() {
+	meter := otel.Meter("go-service")
+
+	var err error
+	loginCounter, err = meter.Int64Counter("login_requests_total")
+	if err != nil {
+		log.Fatalf(`{"level":"fatal","msg":"Failed to create login counter","error":"%v"}`, err)
+	}
 }
 
 func initDB() {
@@ -124,6 +154,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(`{"level":"info","msg":"Login endpoint called"}`)
+	loginCounter.Add(ctx, 1)
+
 	if _, err := w.Write([]byte("Logged in")); err != nil {
 		log.Printf(`{"level":"error","msg":"Failed to write login response","error":"%v"}`, err)
 	}
