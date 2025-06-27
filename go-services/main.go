@@ -19,9 +19,9 @@ import (
 )
 
 var (
-	db    *sql.DB
-	rdb   *redis.Client
-	ctx   = context.Background()
+	db  *sql.DB
+	rdb *redis.Client
+	ctx = context.Background()
 )
 
 func main() {
@@ -115,12 +115,16 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf(`{"level":"info","msg":"Health check","status":%q}`, status)
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(status)
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		log.Printf(`{"level":"error","msg":"Failed to encode health response","error":"%v"}`, err)
+	}
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(`{"level":"info","msg":"Login endpoint called"}`)
-	w.Write([]byte("Logged in"))
+	if _, err := w.Write([]byte("Logged in")); err != nil {
+		log.Printf(`{"level":"error","msg":"Failed to write login response","error":"%v"}`, err)
+	}
 }
 
 func productsHandler(w http.ResponseWriter, r *http.Request) {
@@ -142,5 +146,7 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		products = append(products, name)
 	}
 
-	_ = json.NewEncoder(w).Encode(products)
+	if err := json.NewEncoder(w).Encode(products); err != nil {
+		log.Printf(`{"level":"error","msg":"Failed to encode products","error":"%v"}`, err)
+	}
 }
