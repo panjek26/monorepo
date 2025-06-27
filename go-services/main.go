@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/trace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 var (
@@ -26,7 +26,6 @@ var (
 	rdb           *redis.Client
 	ctx           = context.Background()
 	requestMetric metric.Int64Counter
-	meter         metric.Meter
 )
 
 func main() {
@@ -56,7 +55,7 @@ func initTracer() {
 	if err != nil {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize tracer","error":"%v"}`, err)
 	}
-	tp := trace.NewTracerProvider(trace.WithBatcher(exporter))
+	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
 	otel.SetTracerProvider(tp)
 }
 
@@ -69,14 +68,14 @@ func initMetrics() {
 	provider := metric.NewMeterProvider(metric.WithReader(exporter))
 	otel.SetMeterProvider(provider)
 
-	meter = provider.Meter("go-service")
+	meter := provider.Meter("go-service")
 
-	var metricErr error
-	requestMetric, metricErr = meter.Int64Counter("http_requests_total")
-	if metricErr != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, metricErr)
+	requestMetric, err = meter.Int64Counter("http_requests_total")
+	if err != nil {
+		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
 	}
 
+	// expose /metrics handler
 	http.Handle("/metrics", exporter)
 }
 
