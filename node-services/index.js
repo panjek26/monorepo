@@ -13,9 +13,9 @@ const tracerProvider = new NodeTracerProvider();
 tracerProvider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 tracerProvider.register();
 
-// Setup Meter & Prometheus Exporter
-const prometheusExporter = new PrometheusExporter({ preventServerStart: true });
+// Setup MeterProvider and PrometheusExporter (v2 API)
 const meterProvider = new MeterProvider();
+const prometheusExporter = new PrometheusExporter({ preventServerStart: true });
 meterProvider.addMetricReader(prometheusExporter);
 
 // Custom metric (optional)
