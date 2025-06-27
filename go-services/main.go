@@ -14,24 +14,19 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	otelmetric "go.opentelemetry.io/otel/metric"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 var (
-	db            *sql.DB
-	rdb           *redis.Client
-	ctx           = context.Background()
-	requestMetric otelmetric.Int64Counter
+	db  *sql.DB
+	rdb *redis.Client
+	ctx = context.Background()
 )
 
 func main() {
 	initLog()
 	initTracer()
-	initMetrics()
 	initDB()
 	initRedis()
 
@@ -57,25 +52,6 @@ func initTracer() {
 	}
 	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
 	otel.SetTracerProvider(tp)
-}
-
-func initMetrics() {
-	exporter, handler, err := prometheus.New()
-	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize prometheus exporter","error":"%v"}`, err)
-	}
-
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
-	otel.SetMeterProvider(provider)
-
-	meter := provider.Meter("go-service")
-
-	requestMetric, err = meter.Int64Counter("http_requests_total")
-	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
-	}
-
-	http.Handle("/metrics", handler)
 }
 
 func initDB() {
@@ -119,8 +95,6 @@ func initRedis() {
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	requestMetric.Add(ctx, 1)
-
 	dbErr := db.Ping()
 	redisErr := rdb.Ping(ctx).Err()
 
@@ -149,8 +123,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	requestMetric.Add(ctx, 1)
-
 	log.Println(`{"level":"info","msg":"Login endpoint called"}`)
 	if _, err := w.Write([]byte("Logged in")); err != nil {
 		log.Printf(`{"level":"error","msg":"Failed to write login response","error":"%v"}`, err)
@@ -158,8 +130,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func productsHandler(w http.ResponseWriter, r *http.Request) {
-	requestMetric.Add(ctx, 1)
-
 	rows, err := db.Query("SELECT name FROM products")
 	if err != nil {
 		log.Printf(`{"level":"error","msg":"DB query failed","error":"%v"}`, err)
