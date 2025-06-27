@@ -56,8 +56,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [go-service, node-service]
-        dockerfile: [Dockerfile.go, Dockerfile.node]
+        include:
+          - service: go-service
+            dockerfile: Dockerfile.go
+          - service: node-service
+            dockerfile: Dockerfile.node
 
     steps:
       - uses: actions/checkout@v3
