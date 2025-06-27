@@ -1,14 +1,11 @@
 replicaCount: 2
-
 image:
   repository: panjek26/go-service
-  tag: latest
+  tag: c470cfd
   pullPolicy: Always
-
 service:
   type: ClusterIP
   port: 8080
-
 resources:
   requests:
     cpu: 100m
@@ -16,13 +13,11 @@ resources:
   limits:
     cpu: 200m
     memory: 256Mi
-
 autoscaling:
   enabled: true
   minReplicas: 1
   maxReplicas: 2
   targetCPUUtilizationPercentage: 80
-
 ingress:
   enabled: false
   className: nginx
@@ -33,12 +28,11 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
-  
 env:
   - name: DB_HOST
     value: postgres.default.svc.cluster.local
   - name: DB_PORT
-    value: "5432"
+    value: '5432'
   - name: DB_USER
     value: youruser
   - name: DB_PASSWORD
@@ -51,4 +45,4 @@ env:
   - name: REDIS_HOST
     value: redis.default.svc.cluster.local
   - name: REDIS_PORT
-    value: "6379"
+    value: '6379'
