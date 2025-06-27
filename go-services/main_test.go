@@ -1,22 +1,21 @@
-package main
-
-import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-)
-
-func TestHealthz(t *testing.T) {
+func TestHealthHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	w := httptest.NewRecorder()
-	http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
-	}).ServeHTTP(w, req)
+	healthHandler(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d", resp.StatusCode)
 	}
-	if w.Body.String() != "ok" {
-		t.Errorf("Expected body 'ok', got '%s'", w.Body.String())
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode body: %v", err)
+	}
+
+	if body["database"] != "ok" || body["redis"] != "ok" {
+		t.Errorf("unexpected health status: %+v", body)
 	}
 }
