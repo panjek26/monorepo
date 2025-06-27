@@ -75,9 +75,10 @@ func initMetrics() {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
 	}
 
-	// Expose metrics endpoint using proper handler
-	http.Handle("/metrics", exporter)
+	// ✅ This is the correct handler registration
+	http.Handle("/metrics", http.HandlerFunc(exporter.ServeHTTP))
 }
+
 
 func initDB() {
 	dbHost := os.Getenv("DB_HOST")
