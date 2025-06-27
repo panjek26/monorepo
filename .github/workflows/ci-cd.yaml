@@ -1,0 +1,159 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: main
+
+permissions:
+  contents: write
+
+jobs:
+  go-lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Prepare Go Dependencies
+        working-directory: go-services
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Run Go Lint & Test
+        working-directory: go-services
+        run: |
+          golangci-lint run
+          go test ./...
+
+  node-lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node deps
+        working-directory: node-services
+        run: |
+          npm install
+
+      - name: Run ESLint & Jest
+        working-directory: node-services
+        run: |
+          npm run lint
+          npm test
+
+  docker-build:
+    # needs: [go-lint-test, node-lint-test]
+    needs: [node-lint-test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: go-service
+            dockerfile: Dockerfile.go
+          - service: node-service
+            dockerfile: Dockerfile.node
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Prepare Go Dependencies
+        working-directory: go-services
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node deps
+        working-directory: node-services
+        run: |
+          npm install
+
+      - name: Build & Push Docker Image
+        env:
+          TAG: ${{ github.sha }}
+        run: |
+          SHORT_SHA=${TAG::7}
+          IMAGE=panjek26/${{ matrix.service }}:$SHORT_SHA
+          docker build -f dockerfiles/${{ matrix.dockerfile }} -t $IMAGE .
+          docker push $IMAGE
+
+
+  update-deployment-go-dev:
+    needs: [ docker-build ]
+    name: Deploy Image GO (DEV) - Helm Update (app-deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Binding Environment (Trunk Variables)
+        run: |
+          echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Update Image Version in the related HelmChart values.yaml
+        uses: fjogeleit/yaml-update-action@v0.13.2
+        with:
+          valueFile: k8s/go-service-chart/values.yaml
+          repository: panjek26/monorepo
+          message: "Update image go tag to ${{ env.SHORT_SHA }} for DEV"
+          createPR: false
+          branch: main
+          targetBranch: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          changes: |
+            {
+              "image.tag": "${{ env.SHORT_SHA }}"
+            }
+
+  update-deployment-node-dev:
+    needs: [ update-deployment-go-dev ]
+    name: Deploy Image Node (DEV) - Helm Update (app-deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Binding Environment (Trunk Variables)
+        run: |
+          echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Update Image Version in the related HelmChart values.yaml
+        uses: fjogeleit/yaml-update-action@v0.13.2
+        with:
+          valueFile: k8s/node-service-chart/values.yaml
+          repository: panjek26/monorepo
+          message: "Update image node tag to ${{ env.SHORT_SHA }} for DEV"
+          createPR: false
+          branch: main
+          targetBranch: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          changes: |
+            {
+              "image.tag": "${{ env.SHORT_SHA }}"
+            }
