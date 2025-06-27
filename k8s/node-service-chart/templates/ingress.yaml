@@ -25,6 +25,14 @@ spec:
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}
+          # -- Add this for metrics path --
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}
+                port:
+                  number: 9464
     {{- end }}
   {{- if .Values.ingress.tls }}
   tls:
