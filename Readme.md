@@ -38,7 +38,7 @@ This project demonstrates an SRE-friendly monorepo that includes:
 Implemented via GitHub Actions:
 
 1. **Build & Test**
-   - Optionally runs unit tests (if added).
+   - runs lint & unit tests.
 2. **Docker Image Build**
    - Go and Node.js services are built into distroless images.
 3. **Push to Registry**
