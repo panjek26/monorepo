@@ -118,7 +118,7 @@ jobs:
         with:
           valueFile: k8s/go-service-chart/values.yaml
           repository: panjek26/monorepo
-          message: "Update image tag to $SHORT_SHA for DEV"
+          message: "Update image tag to ${{ env.SHORT_SHA }} for DEV"
           createPR: false
           branch: main
           targetBranch: main
@@ -126,5 +126,5 @@ jobs:
           workDir: monorepo
           changes: |
             {
-              "image.tag": "$SHORT_SHA",
+              "image.tag": "${{ env.SHORT_SHA }}"
             }
