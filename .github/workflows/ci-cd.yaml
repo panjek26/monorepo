@@ -93,6 +93,10 @@ jobs:
           npm install
 
       - name: Build & Push Docker Image
+        env:
+          TAG: ${{ github.sha }}
         run: |
-          docker build -f dockerfiles/${{ matrix.dockerfile }} -t panjek26/${{ matrix.service }}:latest .
-          docker push panjek26/${{ matrix.service }}:latest
+          SHORT_SHA=${TAG::7}
+          IMAGE=panjek26/${{ matrix.service }}:$SHORT_SHA
+          docker build -f dockerfiles/${{ matrix.dockerfile }} -t $IMAGE .
+          docker push $IMAGE
