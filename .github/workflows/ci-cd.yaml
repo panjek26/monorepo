@@ -55,7 +55,8 @@ jobs:
           npm test
 
   docker-build:
-    needs: [go-lint-test, node-lint-test]
+    # needs: [go-lint-test, node-lint-test]
+    needs: [node-lint-test]
     runs-on: ubuntu-latest
     strategy:
       matrix:

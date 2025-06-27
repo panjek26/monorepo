@@ -1,5 +1,4 @@
 const express = require('express');
-const fs = require('fs');
 const morgan = require('morgan');
 const { Pool } = require('pg');
 const redis = require('redis');
@@ -14,7 +13,19 @@ provider.register();
 
 const app = express();
 app.use(express.json());
-app.use(morgan('combined', { stream: fs.createWriteStream('./logs.json', { flags: 'a' }) }));
+
+// JSON logger for HTTP requests
+app.use(morgan((tokens, req, res) => {
+  return JSON.stringify({
+    time: tokens.date(req, res, 'iso'),
+    method: tokens.method(req, res),
+    url: tokens.url(req, res),
+    status: parseInt(tokens.status(req, res), 10),
+    content_length: tokens.res(req, res, 'content-length'),
+    response_time_ms: parseFloat(tokens['response-time'](req, res)),
+    user_agent: tokens['user-agent'](req, res)
+  });
+}));
 
 // ENV vars
 const {
@@ -73,13 +84,13 @@ app.get('/healthz', async (_, res) => {
   }
 
   const status = { database: dbStatus, redis: redisStatus };
-  console.log('Health check:', status);
+  console.log(JSON.stringify({ type: 'healthcheck', status }));
   res.status(code).json(status);
 });
 
 // Dummy login
 app.post('/login', (_, res) => {
-  console.log('Login endpoint hit');
+  console.log(JSON.stringify({ type: 'login', message: 'Login endpoint hit' }));
   res.send('Logged in');
 });
 
@@ -90,9 +101,12 @@ app.get('/products', async (_, res) => {
     const names = result.rows.map(r => r.name);
     res.json(names);
   } catch (err) {
-    console.error('DB error:', err);
+    console.error(JSON.stringify({ type: 'db_error', error: err.message }));
     res.status(500).send('DB error');
   }
 });
 
-app.listen(8081, () => console.log('Node.js service running on :8081'));
+const PORT = 8081;
+app.listen(PORT, () => {
+  console.log(`Node.js service running on :${PORT}`);
+});
