@@ -3,25 +3,25 @@ const morgan = require('morgan');
 const { Pool } = require('pg');
 const redis = require('redis');
 
-// --- OpenTelemetry Tracing ---
 const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
-const { ConsoleSpanExporter, SimpleSpanProcessor } = require('@opentelemetry/sdk-trace-base');
+const { SimpleSpanProcessor, ConsoleSpanExporter } = require('@opentelemetry/sdk-trace-base');
+const { MeterProvider } = require('@opentelemetry/sdk-metrics');
+const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
 
+// Setup Tracer
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 tracerProvider.register();
 
-// --- OpenTelemetry Metrics ---
-const { MeterProvider } = require('@opentelemetry/sdk-metrics');
-const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
+// Setup Meter & Prometheus Exporter
+const prometheusExporter = new PrometheusExporter({ preventServerStart: true });
+const meterProvider = new MeterProvider();
+meterProvider.addMetricReader(prometheusExporter);
 
-const promExporter = new PrometheusExporter({ preventServerStart: true });
-const meterProvider = new MeterProvider({ exporter: promExporter });
-const meter = meterProvider.getMeter('node-service-meter');
-
-// Custom metric: request count
-const requestCounter = meter.createCounter('http_requests_total', {
-  description: 'Total number of HTTP requests',
+// Custom metric (optional)
+const meter = meterProvider.getMeter('node-service');
+const loginCounter = meter.createCounter('login_requests_total', {
+  description: 'Total login requests'
 });
 
 const app = express();
@@ -36,12 +36,6 @@ morgan.token('json', (req, res) => JSON.stringify({
 app.use(morgan(':json'));
 app.use(express.json());
 
-// Middleware to count all incoming requests
-app.use((req, res, next) => {
-  requestCounter.add(1, { route: req.path, method: req.method });
-  next();
-});
-
 // ENV vars
 const {
   DB_HOST = 'localhost',
@@ -53,22 +47,12 @@ const {
   REDIS_PORT = 6379
 } = process.env;
 
-// PostgreSQL setup
-const db = new Pool({
-  host: DB_HOST,
-  port: DB_PORT,
-  user: DB_USER,
-  password: DB_PASSWORD,
-  database: DB_NAME
-});
+// PostgreSQL
+const db = new Pool({ host: DB_HOST, port: DB_PORT, user: DB_USER, password: DB_PASSWORD, database: DB_NAME });
 
-// Redis setup
-const redisClient = redis.createClient({
-  url: `redis://${REDIS_HOST}:${REDIS_PORT}`
-});
-
+// Redis
+const redisClient = redis.createClient({ url: `redis://${REDIS_HOST}:${REDIS_PORT}` });
 redisClient.on('error', err => console.error('Redis error:', err));
-
 (async () => {
   try {
     await redisClient.connect();
@@ -105,11 +89,12 @@ app.get('/healthz', async (_, res) => {
 
 // Dummy login
 app.get('/login', (_, res) => {
+  loginCounter.add(1); // increment metric
   console.log(JSON.stringify({ type: 'login', message: 'Login endpoint hit' }));
   res.send('Logged in');
 });
 
-// Product list
+// Products
 app.get('/products', async (_, res) => {
   try {
     const result = await db.query('SELECT name FROM products');
@@ -121,14 +106,18 @@ app.get('/products', async (_, res) => {
   }
 });
 
-// Expose /metrics (equivalent to Go)
+// Metrics endpoint
 app.get('/metrics', async (req, res) => {
-  res.setHeader('Content-Type', promExporter.contentType);
-  res.end(await promExporter.getMetricsAsJSON());
+  try {
+    const metrics = await prometheusExporter.getMetricsResponse();
+    res.setHeader('Content-Type', metrics.contentType);
+    res.end(metrics.body);
+  } catch (err) {
+    console.error('Failed to serve /metrics:', err);
+    res.status(500).send('Could not load metrics');
+  }
 });
 
-// Start
-const PORT = 8081;
-app.listen(PORT, () => {
-  console.log(JSON.stringify({ type: 'startup', message: `Node.js service running on :${PORT}` }));
+app.listen(8081, () => {
+  console.log(JSON.stringify({ type: 'startup', message: 'Node.js service running on :8081' }));
 });
