@@ -1,7 +1,7 @@
 replicaCount: 2
 image:
   repository: panjek26/go-service
-  tag: 008711e
+  tag: e9779ff
   pullPolicy: Always
 service:
   type: ClusterIP
