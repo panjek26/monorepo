@@ -11,22 +11,28 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/metric"
+	metricglobal "go.opentelemetry.io/otel/metric/global"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 var (
-	db  *sql.DB
-	rdb *redis.Client
-	ctx = context.Background()
+	db            *sql.DB
+	rdb           *redis.Client
+	ctx           = context.Background()
+	requestMetric metric.Int64Counter
 )
 
 func main() {
-	initTracer()
 	initLog()
+	initTracer()
+	initMetrics()
 	initDB()
 	initRedis()
 
@@ -46,9 +52,29 @@ func initLog() {
 }
 
 func initTracer() {
-	exporter, _ := stdouttrace.New()
-	tp := trace.NewTracerProvider(trace.WithBatcher(exporter))
+	exporter, err := stdouttrace.New()
+	if err != nil {
+		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize tracer","error":"%v"}`, err)
+	}
+	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
 	otel.SetTracerProvider(tp)
+}
+
+func initMetrics() {
+	exporter, err := prometheus.New()
+	if err != nil {
+		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize prometheus exporter","error":"%v"}`, err)
+	}
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
+	metricglobal.SetMeterProvider(provider)
+
+	http.Handle("/metrics", exporter)
+
+	meter := metricglobal.Meter("go-service")
+	requestMetric, err = meter.Int64Counter("http_requests_total")
+	if err != nil {
+		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
+	}
 }
 
 func initDB() {
@@ -92,6 +118,8 @@ func initRedis() {
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
+	requestMetric.Add(ctx, 1)
+
 	dbErr := db.Ping()
 	redisErr := rdb.Ping(ctx).Err()
 
@@ -99,8 +127,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"database": "ok",
 		"redis":    "ok",
 	}
-
 	code := http.StatusOK
+
 	if dbErr != nil {
 		status["database"] = "unreachable"
 		code = http.StatusServiceUnavailable
@@ -120,6 +148,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
+	requestMetric.Add(ctx, 1)
+
 	log.Println(`{"level":"info","msg":"Login endpoint called"}`)
 	if _, err := w.Write([]byte("Logged in")); err != nil {
 		log.Printf(`{"level":"error","msg":"Failed to write login response","error":"%v"}`, err)
@@ -127,6 +157,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func productsHandler(w http.ResponseWriter, r *http.Request) {
+	requestMetric.Add(ctx, 1)
+
 	rows, err := db.Query("SELECT name FROM products")
 	if err != nil {
 		log.Printf(`{"level":"error","msg":"DB query failed","error":"%v"}`, err)
