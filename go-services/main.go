@@ -50,6 +50,7 @@ func main() {
 	initDB()
 	initRedis()
 
+	http.HandleFunc("/", withMetrics(rootHandler))
 	http.HandleFunc("/healthz", withMetrics(healthHandler))
 	http.HandleFunc("/login", withMetrics(loginHandler))
 	http.HandleFunc("/products", withMetrics(productsHandler))
@@ -122,6 +123,14 @@ func initRedis() {
 	log.Println(`{"level":"info","msg":"Connected to Redis"}`)
 }
 
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println(`{"level":"info","msg":"Root endpoint called"}`)
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte("Welcome to the Go service!")); err != nil {
+		log.Printf(`{"level":"error","msg":"Failed to write root response","error":"%v"}`, err)
+	}
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	dbErr := db.Ping()
 	redisErr := rdb.Ping(ctx).Err()
@@ -181,7 +190,6 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// withMetrics is a middleware to collect metrics per route
 func withMetrics(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
