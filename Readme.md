@@ -42,7 +42,7 @@ Implemented via GitHub Actions:
 2. **Docker Image Build**
    - Go and Node.js services are built into distroless images.
 3. **Push to Registry**
-   - Images are pushed to GitHub Container Registry (`ghcr.io`).
+   - Images are pushed to Dockerhub Registry.
 4. **Deploy to Kubernetes**
    - Uses Helm charts in `k8s/helm/*`.
 5. **GitOps-style Manifest Update**
