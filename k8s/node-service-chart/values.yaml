@@ -1,0 +1,43 @@
+replicaCount: 2
+image:
+  repository: panjek26/node-service
+  tag: cfff4b3
+  pullPolicy: Always
+service:
+  type: ClusterIP
+  port: 8081
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: node-service.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+env:
+  - name: DB_HOST
+    value: your-db-host
+  - name: DB_PORT
+    value: '5432'
+  - name: DB_USER
+    value: youruser
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db-secret
+        key: password
+  - name: DB_NAME
+    value: yourdb
+  - name: REDIS_HOST
+    value: redis.default.svc.cluster.local
+  - name: REDIS_PORT
+    value: '6379'
