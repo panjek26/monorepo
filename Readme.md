@@ -94,8 +94,8 @@ k8s/helm/
 - Node.js service exposes metrics via `/metrics` on port `9464` using `@opentelemetry/exporter-prometheus`
 
 **Web endpoints for metrics:**
-- [Node.js Service Metrics](http://node-service.35.244.201.179.nip.io/metrics)
-- [Go Service Metrics](http://go-service.35.244.201.179.nip.io/metrics)
+- [Node.js Service Metrics](https://node-service.35.244.201.179.nip.io/metrics)
+- [Go Service Metrics](https://go-service.35.244.201.179.nip.io/metrics)
 
 Example custom metric:
 - `login_requests_total` counter on `/login` endpoint
