@@ -16,8 +16,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/sdk/metric"
+	otelmetric "go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
@@ -25,7 +25,7 @@ var (
 	db            *sql.DB
 	rdb           *redis.Client
 	ctx           = context.Background()
-	requestMetric metric.Int64Counter
+	requestMetric otelmetric.Int64Counter
 )
 
 func main() {
@@ -65,7 +65,7 @@ func initMetrics() {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize prometheus exporter","error":"%v"}`, err)
 	}
 
-	provider := metric.NewMeterProvider(metric.WithReader(exporter))
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	otel.SetMeterProvider(provider)
 
 	meter := provider.Meter("go-service")
@@ -75,7 +75,7 @@ func initMetrics() {
 		log.Fatalf(`{"level":"fatal","msg":"Failed to create metric","error":"%v"}`, err)
 	}
 
-	// expose /metrics handler
+	// Expose metrics endpoint using proper handler
 	http.Handle("/metrics", exporter)
 }
 
