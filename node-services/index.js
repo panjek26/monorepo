@@ -12,20 +12,16 @@ provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 provider.register();
 
 const app = express();
-app.use(express.json());
 
-// JSON logger for HTTP requests
-app.use(morgan((tokens, req, res) => {
-  return JSON.stringify({
-    time: tokens.date(req, res, 'iso'),
-    method: tokens.method(req, res),
-    url: tokens.url(req, res),
-    status: parseInt(tokens.status(req, res), 10),
-    content_length: tokens.res(req, res, 'content-length'),
-    response_time_ms: parseFloat(tokens['response-time'](req, res)),
-    user_agent: tokens['user-agent'](req, res)
-  });
+// JSON logging to stdout
+morgan.token('json', (req, res) => JSON.stringify({
+  method: req.method,
+  url: req.url,
+  status: res.statusCode,
+  timestamp: new Date().toISOString()
 }));
+app.use(morgan(':json'));
+app.use(express.json());
 
 // ENV vars
 const {
@@ -57,9 +53,9 @@ redisClient.on('error', err => console.error('Redis error:', err));
 (async () => {
   try {
     await redisClient.connect();
-    console.log('Connected to Redis');
+    console.log(JSON.stringify({ type: 'startup', message: 'Connected to Redis' }));
   } catch (err) {
-    console.error('Redis connect error:', err);
+    console.error(JSON.stringify({ type: 'startup', error: err.message }));
   }
 })();
 
@@ -71,25 +67,25 @@ app.get('/healthz', async (_, res) => {
 
   try {
     await db.query('SELECT 1');
-  } catch (err) {
+  } catch {
     dbStatus = 'unreachable';
     code = 503;
   }
 
   try {
     await redisClient.ping();
-  } catch (err) {
+  } catch {
     redisStatus = 'unreachable';
     code = 503;
   }
 
   const status = { database: dbStatus, redis: redisStatus };
-  console.log(JSON.stringify({ type: 'healthcheck', status }));
+  console.log(JSON.stringify({ type: 'healthz', status }));
   res.status(code).json(status);
 });
 
-// Dummy login
-app.post('/login', (_, res) => {
+// Dummy login (GET only, match Go)
+app.get('/login', (_, res) => {
   console.log(JSON.stringify({ type: 'login', message: 'Login endpoint hit' }));
   res.send('Logged in');
 });
@@ -101,12 +97,12 @@ app.get('/products', async (_, res) => {
     const names = result.rows.map(r => r.name);
     res.json(names);
   } catch (err) {
-    console.error(JSON.stringify({ type: 'db_error', error: err.message }));
+    console.error(JSON.stringify({ type: 'db', error: err.message }));
     res.status(500).send('DB error');
   }
 });
 
-const PORT = 8081;
-app.listen(PORT, () => {
-  console.log(`Node.js service running on :${PORT}`);
+// Start service
+app.listen(8081, () => {
+  console.log(JSON.stringify({ type: 'startup', message: 'Node.js service running on :8081' }));
 });
