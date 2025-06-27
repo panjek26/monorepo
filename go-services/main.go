@@ -41,11 +41,8 @@ func main() {
 }
 
 func initLog() {
-	logFile, err := os.OpenFile("logs.json", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to open log file","error":"%v"}`, err)
-	}
-	log.SetOutput(logFile)
+	log.SetFlags(0)             // Disable default log timestamp
+	log.SetOutput(os.Stdout)    // Output to stdout
 }
 
 func initTracer() {
@@ -113,7 +110,9 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		code = http.StatusServiceUnavailable
 	}
 
-	log.Printf(`{"level":"info","msg":"Health check","status":%q}`, status)
+	statusJSON, _ := json.Marshal(status)
+	log.Printf(`{"level":"info","msg":"Health check","status":%s}`, statusJSON)
+
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(status); err != nil {
 		log.Printf(`{"level":"error","msg":"Failed to encode health response","error":"%v"}`, err)

@@ -105,7 +105,33 @@ jobs:
           docker push $IMAGE
 
 
-  update-deployment-dev:
+  update-deployment-go-dev:
+    needs: [ docker-build ]
+    name: Deploy Image (DEV) - Helm Update (app-deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Binding Environment (Trunk Variables)
+        run: |
+          echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Update Image Version in the related HelmChart values.yaml
+        uses: fjogeleit/yaml-update-action@v0.13.2
+        with:
+          valueFile: k8s/go-service-chart/values.yaml
+          repository: panjek26/monorepo
+          message: "Update image tag to ${{ env.SHORT_SHA }} for DEV"
+          createPR: false
+          branch: main
+          targetBranch: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          changes: |
+            {
+              "image.tag": "${{ env.SHORT_SHA }}"
+            }
+
+  update-deployment-go-dev:
     needs: [ docker-build ]
     name: Deploy Image (DEV) - Helm Update (app-deployment)
     runs-on: ubuntu-latest
