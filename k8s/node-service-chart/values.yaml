@@ -1,7 +1,7 @@
 replicaCount: 2
 image:
   repository: panjek26/node-service
-  tag: 9de942a
+  tag: fd966fd
   pullPolicy: Always
 service:
   type: ClusterIP
