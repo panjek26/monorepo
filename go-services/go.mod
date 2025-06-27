@@ -35,3 +35,5 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 )
+
+replace go.opentelemetry.io/otel/sdk/metric => go.opentelemetry.io/otel/sdk/metric v1.37.0
