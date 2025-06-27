@@ -11,33 +11,49 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/metric"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 var (
-	db           *sql.DB
-	rdb          *redis.Client
-	ctx          = context.Background()
-	loginCounter metric.Int64Counter
+	db  *sql.DB
+	rdb *redis.Client
+	ctx = context.Background()
+
+	httpRequestCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"path", "method"},
+	)
+
+	httpRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "Duration of HTTP requests",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"path"},
+	)
 )
 
 func main() {
 	initLog()
+	initMetrics()
 	initTracer()
 	initDB()
 	initRedis()
-	initMetrics()
 
-	http.HandleFunc("/healthz", healthHandler)
-	http.HandleFunc("/login", loginHandler)
-	http.HandleFunc("/products", productsHandler)
+	http.HandleFunc("/healthz", withMetrics(healthHandler))
+	http.HandleFunc("/login", withMetrics(loginHandler))
+	http.HandleFunc("/products", withMetrics(productsHandler))
+	http.Handle("/metrics", promhttp.Handler())
 
 	log.Println(`{"level":"info","msg":"Go service started on :8080"}`)
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -50,38 +66,20 @@ func initLog() {
 	log.SetOutput(os.Stdout)
 }
 
-func initTracer() {
-	// Tracing exporter (stdout for demo purposes)
-	traceExporter, err := stdouttrace.New()
-	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize trace exporter","error":"%v"}`, err)
-	}
-	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(traceExporter))
-	otel.SetTracerProvider(tp)
-
-	// Prometheus metrics exporter
-	promExporter, err := prometheus.New()
-	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize Prometheus exporter","error":"%v"}`, err)
-	}
-
-	meterProvider := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(promExporter),
-	)
-	otel.SetMeterProvider(meterProvider)
-
-	// Expose /metrics
-	http.Handle("/metrics", promExporter)
+func initMetrics() {
+	prometheus.MustRegister(httpRequestCount)
+	prometheus.MustRegister(httpRequestDuration)
+	log.Println(`{"level":"info","msg":"Prometheus metrics registered"}`)
 }
 
-func initMetrics() {
-	meter := otel.Meter("go-service")
-
-	var err error
-	loginCounter, err = meter.Int64Counter("login_requests_total")
+func initTracer() {
+	exporter, err := stdouttrace.New()
 	if err != nil {
-		log.Fatalf(`{"level":"fatal","msg":"Failed to create login counter","error":"%v"}`, err)
+		log.Fatalf(`{"level":"fatal","msg":"Failed to initialize tracer","error":"%v"}`, err)
 	}
+	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
+	otel.SetTracerProvider(tp)
+	log.Println(`{"level":"info","msg":"OpenTelemetry tracer initialized"}`)
 }
 
 func initDB() {
@@ -154,8 +152,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println(`{"level":"info","msg":"Login endpoint called"}`)
-	loginCounter.Add(ctx, 1)
-
 	if _, err := w.Write([]byte("Logged in")); err != nil {
 		log.Printf(`{"level":"error","msg":"Failed to write login response","error":"%v"}`, err)
 	}
@@ -182,5 +178,17 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(products); err != nil {
 		log.Printf(`{"level":"error","msg":"Failed to encode products","error":"%v"}`, err)
+	}
+}
+
+// withMetrics is a middleware to collect metrics per route
+func withMetrics(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		handler(w, r)
+		duration := time.Since(start).Seconds()
+
+		httpRequestCount.WithLabelValues(r.URL.Path, r.Method).Inc()
+		httpRequestDuration.WithLabelValues(r.URL.Path).Observe(duration)
 	}
 }
