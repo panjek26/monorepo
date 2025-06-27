@@ -1,19 +1,5 @@
-# Stage 1: Build dependencies
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 WORKDIR /app
 COPY node-services/ .
-
-# Install dependencies (prod only recommended for distroless)
-RUN npm install --omit=dev
-
-# Stage 2: Distroless runtime
-FROM gcr.io/distroless/nodejs:20
-
-WORKDIR /app
-COPY --from=builder /app /app
-
-# Expose port (optional)
-EXPOSE 8080
-
-# Entrypoint
-CMD ["index.js"]
+RUN npm install
+CMD ["node", "index.js"]
