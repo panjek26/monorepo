@@ -5,7 +5,7 @@ on:
     branches: [feat/monorepo]
 
 jobs:
-  lint-test:
+  go-lint-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -29,6 +29,11 @@ jobs:
           golangci-lint run
           go test ./...
 
+  node-lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -46,7 +51,7 @@ jobs:
           npm test
 
   docker-build:
-    needs: lint-test
+    needs: [go-lint-test, node-lint-test]
     runs-on: ubuntu-latest
     strategy:
       matrix:

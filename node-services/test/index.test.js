@@ -4,7 +4,7 @@ const express = require('express');
 const app = express();
 app.get('/healthz', (_, res) => res.send('ok'));
 app.post('/login', (_, res) => res.send('Logged in'));
-app.get('/products', (_, res) => res.json(["Product A", "Product B"]));
+app.get('/products', (_, res) => res.json(['Product A', 'Product B'])); // 🔁 tanda petik tunggal
 
 describe('Node Service', () => {
   it('should return 200 for /healthz', async () => {
@@ -20,6 +20,6 @@ describe('Node Service', () => {
 
   it('should return product list', async () => {
     const res = await request(app).get('/products');
-    expect(res.body).toEqual(["Product A", "Product B"]);
+    expect(res.body).toEqual(['Product A', 'Product B']); // 🔁
   });
 });
