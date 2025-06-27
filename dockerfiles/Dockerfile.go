@@ -1,5 +1,5 @@
 FROM golang:1.22-alpine
 WORKDIR /app
-COPY go-service/ .
+COPY go-services/ .
 RUN go build -o app .
 CMD ["./app"]
