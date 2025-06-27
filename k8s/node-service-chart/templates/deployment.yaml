@@ -23,6 +23,9 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8081
+              name: http
+            - containerPort: 9464
+              name: metrics
           env:
             {{- range .Values.env }}
             {{- if .valueFrom }}
